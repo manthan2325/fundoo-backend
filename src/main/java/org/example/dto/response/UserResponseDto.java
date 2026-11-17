@@ -9,7 +9,7 @@ public class UserResponseDto {
     public UserResponseDto() {
     }
 
-    public UserResponseDto(Long id, String email, String firstName) {
+    public UserResponseDto(Long id, String firstName,String email) {
         this.id = id;
         this.email = email;
         this.firstName = firstName;
