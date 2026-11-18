@@ -6,22 +6,31 @@ import org.example.dto.response.LoginResponseDto;
 import org.example.dto.response.UserResponseDto;
 import org.example.entity.UserEntity;
 import org.example.repository.UserRepository;
-import org.junit.jupiter.api.DisplayName;
+import org.example.util.JwtToken;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.security.InvalidParameterException;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+/*
+ * Class Name  : UserServiceImplTest
+ * Description : Unit tests for UserServiceImpl register and login.
+ *               UserRepository, PasswordEncoder and JwtToken are mocked.
+ */
 
 @ExtendWith(MockitoExtension.class)
 class UserServiceImplTest {
@@ -29,96 +38,132 @@ class UserServiceImplTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private PasswordEncoder passwordEncoder;
+
+    @Mock
+    private JwtToken jwtToken;
+
     @InjectMocks
     private UserServiceImpl userService;
 
-    // ---------- register ----------
+    private UserEntity userEntity(Long id, String firstName, String email, String password) {
+        UserEntity user = new UserEntity();
+        user.setId(id);
+        user.setFirstName(firstName);
+        user.setEmail(email);
+        user.setPassword(password);
+        return user;
+    }
 
+    private LoginRequestDto loginRequest(String email, String password) {
+        LoginRequestDto dto = new LoginRequestDto();
+        dto.setEmail(email);
+        dto.setPassword(password);
+        return dto;
+    }
+
+    // =====================  register  =====================
+
+    // Verifies that a new user is saved and returned with the correct fields.
     @Test
-    @DisplayName("register: saves new user and returns response DTO")
-    void register_success() {
-        UserRegisterRequestDto request = new UserRegisterRequestDto();
-        request.setFirstName("John");
-        request.setEmail("john@example.com");
-        request.setPassword("secret123");
+    void shouldRegisterNewUser() {
+        UserRegisterRequestDto request =
+                new UserRegisterRequestDto("Rohan", "rohan@example.com", "secret123");
 
-        when(userRepository.findByEmail("john@example.com")).thenReturn(Optional.empty());
-
-        UserEntity saved = new UserEntity();
-        saved.setId(1L);
-        saved.setFirstName("John");
-        saved.setEmail("john@example.com");
-        saved.setPassword("secret123");
-        when(userRepository.save(any(UserEntity.class))).thenReturn(saved);
+        when(userRepository.findByEmail("rohan@example.com")).thenReturn(Optional.empty());
+        when(passwordEncoder.encode("secret123")).thenReturn("hashed-secret");
+        when(userRepository.save(any(UserEntity.class)))
+                .thenReturn(userEntity(1L, "Rohan", "rohan@example.com", "hashed-secret"));
 
         UserResponseDto response = userService.register(request);
 
-        assertNotNull(response);
         assertEquals(1L, response.getId());
-        assertEquals("John", response.getFirstName());
-        assertEquals("john@example.com", response.getEmail());
-
-        // verify the entity passed to save() was built correctly
-        ArgumentCaptor<UserEntity> captor = ArgumentCaptor.forClass(UserEntity.class);
-        verify(userRepository).save(captor.capture());
-        UserEntity toSave = captor.getValue();
-        assertEquals("John", toSave.getFirstName());
-        assertEquals("john@example.com", toSave.getEmail());
-        assertEquals("secret123", toSave.getPassword());
+        assertEquals("rohan@example.com", response.getEmail());
+        assertEquals("Rohan", response.getFirstName());
     }
 
+    // Verifies that the password is encoded before it is saved.
     @Test
-    @DisplayName("register: throws when email already registered")
-    void register_emailAlreadyExists() {
-        UserRegisterRequestDto request = new UserRegisterRequestDto();
-        request.setFirstName("John");
-        request.setEmail("john@example.com");
-        request.setPassword("secret123");
+    void shouldSaveEncodedPasswordNotPlainText() {
+        UserRegisterRequestDto request =
+                new UserRegisterRequestDto("Rohan", "rohan@example.com", "secret123");
 
-        when(userRepository.findByEmail("john@example.com"))
-                .thenReturn(Optional.of(new UserEntity()));
+        when(userRepository.findByEmail("rohan@example.com")).thenReturn(Optional.empty());
+        when(passwordEncoder.encode("secret123")).thenReturn("hashed-secret");
+        when(userRepository.save(any(UserEntity.class)))
+                .thenReturn(userEntity(1L, "Rohan", "rohan@example.com", "hashed-secret"));
 
-        IllegalArgumentException ex = assertThrows(
-                IllegalArgumentException.class,
+        userService.register(request);
+
+        ArgumentCaptor<UserEntity> captor = ArgumentCaptor.forClass(UserEntity.class);
+        verify(userRepository).save(captor.capture());
+
+        assertEquals("hashed-secret", captor.getValue().getPassword());
+        assertNotEquals("secret123", captor.getValue().getPassword());
+        assertEquals("Rohan", captor.getValue().getFirstName());
+        assertEquals("rohan@example.com", captor.getValue().getEmail());
+    }
+
+    // Verifies that registering an existing email is rejected and nothing is saved.
+    @Test
+    void shouldRejectDuplicateEmail() {
+        UserRegisterRequestDto request =
+                new UserRegisterRequestDto("Rohan", "rohan@example.com", "secret123");
+
+        when(userRepository.findByEmail("rohan@example.com"))
+                .thenReturn(Optional.of(userEntity(1L, "Rohan", "rohan@example.com", "hashed-secret")));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> userService.register(request));
 
         assertEquals("Email already registered", ex.getMessage());
-        verify(userRepository, never()).save(any(UserEntity.class));
+        verify(passwordEncoder, never()).encode(anyString());
+        verify(userRepository, never()).save(any());
     }
 
-    // ---------- login ----------
+    // =====================  login  =====================
 
+    // Verifies that valid credentials return a token.
     @Test
-    @DisplayName("login: returns token when user exists")
-    void login_success() {
-        LoginRequestDto request = new LoginRequestDto();
-        request.setEmail("john@example.com");
-        request.setPassword("secret123");
+    void shouldLoginWithCorrectPassword() {
+        UserEntity stored = userEntity(1L, "Rohan", "rohan@example.com", "hashed-secret");
 
-        when(userRepository.findByEmail("john@example.com"))
-                .thenReturn(Optional.of(new UserEntity()));
+        when(userRepository.findByEmail("rohan@example.com")).thenReturn(Optional.of(stored));
+        when(passwordEncoder.matches("secret123", "hashed-secret")).thenReturn(true);
+        when(jwtToken.generateToken(1L)).thenReturn("jwt-token");
 
-        LoginResponseDto response = userService.login(request);
+        LoginResponseDto response = userService.login(loginRequest("rohan@example.com", "secret123"));
 
-        assertNotNull(response);
-        assertEquals("SampleToken", response.getToken());
+        assertEquals("jwt-token", response.getToken());
         assertEquals("Login successfull", response.getMessage());
     }
 
+    // Verifies that an unknown email is rejected and no token is created.
     @Test
-    @DisplayName("login: throws when user not found")
-    void login_userNotFound() {
-        LoginRequestDto request = new LoginRequestDto();
-        request.setEmail("missing@example.com");
-        request.setPassword("whatever");
+    void shouldRejectLoginForUnknownUser() {
+        when(userRepository.findByEmail("nobody@example.com")).thenReturn(Optional.empty());
 
-        when(userRepository.findByEmail("missing@example.com"))
-                .thenReturn(Optional.empty());
-
-        InvalidParameterException ex = assertThrows(
-                InvalidParameterException.class,
-                () -> userService.login(request));
+        InvalidParameterException ex = assertThrows(InvalidParameterException.class,
+                () -> userService.login(loginRequest("nobody@example.com", "secret123")));
 
         assertEquals("User not found", ex.getMessage());
+        verify(passwordEncoder, never()).matches(anyString(), anyString());
+        verify(jwtToken, never()).generateToken(anyLong());
+    }
+
+    // Verifies that a wrong password is rejected and no token is created.
+    @Test
+    void shouldRejectLoginWithWrongPassword() {
+        UserEntity stored = userEntity(1L, "Rohan", "rohan@example.com", "hashed-secret");
+
+        when(userRepository.findByEmail("rohan@example.com")).thenReturn(Optional.of(stored));
+        when(passwordEncoder.matches("wrong-pass", "hashed-secret")).thenReturn(false);
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> userService.login(loginRequest("rohan@example.com", "wrong-pass")));
+
+        assertEquals("Password is wrong for the user", ex.getMessage());
+        verify(jwtToken, never()).generateToken(anyLong());
     }
 }
