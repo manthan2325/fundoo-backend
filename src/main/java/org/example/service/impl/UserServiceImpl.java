@@ -7,6 +7,8 @@ import org.example.dto.response.UserResponseDto;
 import org.example.entity.UserEntity;
 import org.example.repository.UserRepository;
 import org.example.service.UserService;
+import org.example.util.JwtToken;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.security.InvalidParameterException;
@@ -15,9 +17,13 @@ import java.security.InvalidParameterException;
 public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtToken jwtToken;
 
-    public UserServiceImpl(UserRepository userRepository){
+    public UserServiceImpl(UserRepository userRepository,PasswordEncoder passwordEncoder,JwtToken jwtToken){
         this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.jwtToken = jwtToken;
     }
 
     @Override
@@ -29,7 +35,7 @@ public class UserServiceImpl implements UserService {
         UserEntity user = new UserEntity();
         user.setFirstName(registerrequestdto.getFirstName());
         user.setEmail(registerrequestdto.getEmail());
-        user.setPassword(registerrequestdto.getPassword());
+        user.setPassword(passwordEncoder.encode(registerrequestdto.getPassword()));
 
         UserEntity savedUser = userRepository.save(user);
 
@@ -44,7 +50,10 @@ public class UserServiceImpl implements UserService {
     public LoginResponseDto login(LoginRequestDto loginrequestdto){
         UserEntity user = userRepository.findByEmail(loginrequestdto.getEmail()).orElseThrow(() -> new InvalidParameterException("User not found"));
 
-        return new LoginResponseDto("SampleToken","Login successfull");
+        if(!passwordEncoder.matches(loginrequestdto.getPassword(),user.getPassword())){
+            throw new IllegalArgumentException("Password is wrong for the user");
+        }
+        return new LoginResponseDto(jwtToken.generateToken(user.getId()),"Login successfull");
     }
 
 }
