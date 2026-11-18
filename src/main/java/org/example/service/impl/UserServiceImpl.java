@@ -5,6 +5,8 @@ import org.example.dto.request.UserRegisterRequestDto;
 import org.example.dto.response.LoginResponseDto;
 import org.example.dto.response.UserResponseDto;
 import org.example.entity.UserEntity;
+import org.example.exception.InValidCredentialsException;
+import org.example.exception.UserAlreadyExistsException;
 import org.example.repository.UserRepository;
 import org.example.service.UserService;
 import org.example.util.JwtToken;
@@ -30,7 +32,7 @@ public class UserServiceImpl implements UserService {
     public UserResponseDto register(UserRegisterRequestDto registerrequestdto){
 
         if(userRepository.findByEmail(registerrequestdto.getEmail()).isPresent()){
-            throw new IllegalArgumentException("Email already registered");
+            throw new UserAlreadyExistsException("Email already registered");
         }
         UserEntity user = new UserEntity();
         user.setFirstName(registerrequestdto.getFirstName());
@@ -51,7 +53,7 @@ public class UserServiceImpl implements UserService {
         UserEntity user = userRepository.findByEmail(loginrequestdto.getEmail()).orElseThrow(() -> new InvalidParameterException("User not found"));
 
         if(!passwordEncoder.matches(loginrequestdto.getPassword(),user.getPassword())){
-            throw new IllegalArgumentException("Password is wrong for the user");
+            throw new InValidCredentialsException("Password is wrong for the user");
         }
         return new LoginResponseDto(jwtToken.generateToken(user.getId()),"Login successfull");
     }
