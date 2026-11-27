@@ -41,7 +41,7 @@ class UserControllerTest {
     @Test
     void shouldRegisterUserSuccessfully() throws Exception {
         when(userService.register(any(UserRegisterRequestDto.class)))
-                .thenReturn(new UserResponseDto(1L, "rohan@example.com", "Rohan"));
+                .thenReturn(new UserResponseDto(1L,"Rohan", "rohan@example.com"));
 
         String body = """
                 {"firstName":"Rohan","email":"rohan@example.com","password":"secret123"}

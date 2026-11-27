@@ -14,7 +14,7 @@ public class UserEntity {
     private Long id;
 
     @Column(nullable = false)
-    private String firstname;
+    private String firstName;
 
     @Column(nullable = false, unique = true)
     private String email;
@@ -34,11 +34,11 @@ public class UserEntity {
     }
 
     public String getFirstName() {
-        return firstname;
+        return firstName;
     }
 
-    public void setFirstName(String firstname) {
-        this.firstname = firstname;
+    public void setFirstName(String firstName) {
+        this.firstName = firstName;
     }
 
     public String getEmail() {

@@ -7,6 +7,7 @@ import org.example.dto.response.UserResponseDto;
 import org.example.entity.UserEntity;
 import org.example.exception.InValidCredentialsException;
 import org.example.exception.UserAlreadyExistsException;
+import org.example.exception.UserNotFoundException;
 import org.example.repository.UserRepository;
 import org.example.service.UserService;
 import org.example.util.JwtToken;
@@ -50,7 +51,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public LoginResponseDto login(LoginRequestDto loginrequestdto){
-        UserEntity user = userRepository.findByEmail(loginrequestdto.getEmail()).orElseThrow(() -> new InvalidParameterException("User not found"));
+        UserEntity user = userRepository.findByEmail(loginrequestdto.getEmail()).orElseThrow(() -> new UserNotFoundException("User not found"));
 
         if(!passwordEncoder.matches(loginrequestdto.getPassword(),user.getPassword())){
             throw new InValidCredentialsException("Password is wrong for the user");

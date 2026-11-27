@@ -11,8 +11,8 @@ public class UserResponseDto {
 
     public UserResponseDto(Long id, String firstName,String email) {
         this.id = id;
-        this.email = email;
         this.firstName = firstName;
+        this.email = email;
     }
 
     public Long getId() {

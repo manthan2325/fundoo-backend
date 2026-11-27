@@ -5,6 +5,9 @@ import org.example.dto.request.UserRegisterRequestDto;
 import org.example.dto.response.LoginResponseDto;
 import org.example.dto.response.UserResponseDto;
 import org.example.entity.UserEntity;
+import org.example.exception.InValidCredentialsException;
+import org.example.exception.UserAlreadyExistsException;
+import org.example.exception.UserNotFoundException;
 import org.example.repository.UserRepository;
 import org.example.util.JwtToken;
 import org.junit.jupiter.api.Test;
@@ -114,7 +117,7 @@ class UserServiceImplTest {
         when(userRepository.findByEmail("rohan@example.com"))
                 .thenReturn(Optional.of(userEntity(1L, "Rohan", "rohan@example.com", "hashed-secret")));
 
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+        UserAlreadyExistsException ex = assertThrows(UserAlreadyExistsException.class,
                 () -> userService.register(request));
 
         assertEquals("Email already registered", ex.getMessage());
@@ -144,7 +147,7 @@ class UserServiceImplTest {
     void shouldRejectLoginForUnknownUser() {
         when(userRepository.findByEmail("nobody@example.com")).thenReturn(Optional.empty());
 
-        InvalidParameterException ex = assertThrows(InvalidParameterException.class,
+        UserNotFoundException ex = assertThrows(UserNotFoundException.class,
                 () -> userService.login(loginRequest("nobody@example.com", "secret123")));
 
         assertEquals("User not found", ex.getMessage());
@@ -160,7 +163,7 @@ class UserServiceImplTest {
         when(userRepository.findByEmail("rohan@example.com")).thenReturn(Optional.of(stored));
         when(passwordEncoder.matches("wrong-pass", "hashed-secret")).thenReturn(false);
 
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+        InValidCredentialsException ex = assertThrows(InValidCredentialsException.class,
                 () -> userService.login(loginRequest("rohan@example.com", "wrong-pass")));
 
         assertEquals("Password is wrong for the user", ex.getMessage());
